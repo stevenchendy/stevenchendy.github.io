@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>海底掘金 - Undersea Mining</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: linear-gradient(180deg, #0a1a3e 0%, #051028 50%, #020812 100%);
+  color: #e0e8f0;
+  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  overflow: hidden;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#game-container {
+  position: relative;
+  width: 600px;
+  height: 720px;
+  max-width: 95vw;
+  max-height: 95vh;
+}
+#canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #0d2847 0%, #061528 100%);
+  box-shadow: 0 0 40px rgba(0, 100, 200, 0.3), 0 0 80px rgba(0, 50, 150, 0.1);
+}
+#hud {
+  position: absolute;
+  top: 10px; left: 10px; right: 10px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  pointer-events: none;
+  z-index: 10;
+}
+.hud-item {
+  background: rgba(5, 20, 50, 0.75);
+  border: 1px solid rgba(64, 164, 255, 0.3);
+  border-radius: 8px;
+  padding: 4px 12px;
+  font-size: 14px;
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.hud-item .icon { font-size: 18px; }
+.hud-item .value { font-weight: bold; color: #7fdbff; }
+#overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(2, 8, 20, 0.92);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  border-radius: 12px;
+  padding: 30px;
+}
+#overlay.hidden { display: none; }
+#overlay h1 { font-size: 36px; color: #7fdbff; margin-bottom: 8px; text-shadow: 0 0 20px rgba(127,219,255,0.5); }
+#overlay .subtitle { font-size: 14px; color: #5a8ab5; margin-bottom: 30px; }
+.char-select { display: flex; gap: 20px; margin: 20px 0; }
+.char-card {
+  width: 200px;
+  background: rgba(10, 30, 60, 0.6);
+  border: 2px solid rgba(64, 164, 255, 0.2);
+  border-radius: 12px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: center;
+}
+.char-card:hover { border-color: rgba(127, 219, 255, 0.6); background: rgba(15, 40, 80, 0.7); transform: translateY(-4px); }
+.char-card.selected { border-color: #7fdbff; background: rgba(20, 50, 100, 0.8); box-shadow: 0 0 20px rgba(127,219,255,0.3); }
+.char-card .emoji { font-size: 48px; margin-bottom: 8px; }
+.char-card h3 { font-size: 20px; color: #7fdbff; margin-bottom: 8px; }
+.char-card p { font-size: 13px; color: #a0b8d0; line-height: 1.5; }
+.btn {
+  background: linear-gradient(135deg, #1a5276, #2471a3);
+  color: #e8f4fc;
+  border: 2px solid rgba(127, 219, 255, 0.4);
+  border-radius: 8px;
+  padding: 12px 36px;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-top: 16px;
+}
+.btn:hover { background: linear-gradient(135deg, #2471a3, #2e86c1); box-shadow: 0 0 20px rgba(127,219,255,0.3); }
+.btn:active { transform: scale(0.97); }
+.instructions { font-size: 12px; color: #5a8ab5; margin-top: 24px; line-height: 1.8; text-align: center; }
+.key { display: inline-block; background: rgba(64,164,255,0.15); border: 1px solid rgba(64,164,255,0.3); border-radius: 4px; padding: 1px 6px; margin: 0 2px; font-size: 11px; }
+#shop-modal {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(2, 8, 20, 0.85);
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 30;
+  border-radius: 12px;
+}
+#shop-modal.show { display: flex; }
+#shop-modal h2 { font-size: 28px; color: #ffd700; margin-bottom: 16px; }
+.shop-items { display: flex; gap: 20px; margin: 20px 0; }
+.shop-card {
+  background: rgba(10, 30, 60, 0.7);
+  border: 2px solid rgba(255, 215, 0, 0.3);
+  border-radius: 10px;
+  padding: 20px 28px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+.shop-card:hover { border-color: rgba(255,215,0,0.7); transform: scale(1.05); }
+.shop-card .cost { font-size: 24px; color: #ffd700; margin: 8px 0; }
+.shop-card .desc { font-size: 13px; color: #a0b8d0; }
+.toast {
+  position: absolute;
+  bottom: 80px; left: 50%;
+  transform: translateX(-50%);
+  background: rgba(5, 20, 50, 0.9);
+  border: 1px solid rgba(127, 219, 255, 0.4);
+  border-radius: 8px;
+  padding: 8px 20px;
+  font-size: 14px;
+  color: #7fdbff;
+  z-index: 15;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(-10px); }
+.bubble {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(127,219,255,0.15), transparent);
+  pointer-events: none;
+}
+#controls-hint {
+  position: absolute;
+  bottom: 8px; left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: rgba(127, 219, 255, 0.4);
+  pointer-events: none;
+  z-index: 10;
+}
+</style>
+</head>
+<body>
+<div id="game-container">
+  <canvas id="canvas" width="600" height="720"></canvas>
+  <div id="hud">
+    <div class="hud-item"><span class="icon">⛏️</span><span>深度</span><span class="value" id="hud-depth">0m</span></div>
+    <div class="hud-item"><span class="icon">💎</span><span>矿石</span><span class="value" id="hud-ore">0</span></div>
+    <div class="hud-item"><span class="icon">⭐</span><span>得分</span><span class="value" id="hud-score">0</span></div>
+    <div class="hud-item"><span class="icon">🦘</span><span>跳跃</span><span class="value" id="hud-jumps">0</span></div>
+  </div>
+  <div class="toast" id="toast"></div>
+  <div id="controls-hint">← → 左右移动 &nbsp;|&nbsp; ↓ 向下挖 &nbsp;|&nbsp; SPACE 跳跃 &nbsp;|&nbsp; S 商店</div>
+  <div id="overlay">
+    <h1>🌊 海底掘金</h1>
+    <p class="subtitle">向深海挖掘，收集矿石与宝藏，探索无尽海底世界</p>
+    <div class="char-select">
+      <div class="char-card selected" data-char="yoyo">
+        <div class="emoji">🪀</div>
+        <h3>YOYO</h3>
+        <p>开局额外+4跳跃步数<br>适合新手稳健发育<br>跳跃更充裕</p>
+      </div>
+      <div class="char-card" data-char="click">
+        <div class="emoji">👆</div>
+        <h3>CLICK</h3>
+        <p>所有矿石价值+20%<br>后期收益巨大<br>适合老手</p>
+      </div>
+    </div>
+    <button class="btn" id="start-btn">开始挖掘 ⛏️</button>
+    <div class="instructions">
+      <span class="key">←</span><span class="key">→</span> 左右移动 &nbsp;&nbsp;
+      <span class="key">↓</span> 向下挖掘 &nbsp;&nbsp;
+      <span class="key">SPACE</span> 跳跃(越障) &nbsp;&nbsp;
+      <span class="key">S</span> 打开商店<br>
+      挖到深处收集矿石、海星和跳跃道具，遇到商店可购买补给
+    </div>
+  </div>
+  <div id="shop-modal">
+    <h2>🏪 深海商店</h2>
+    <p style="color:#a0b8d0; margin-bottom:8px;">用矿石交换珍贵道具</p>
+    <div class="shop-items">
+      <div class="shop-card" data-buy="jump">
+        <div style="font-size:36px;">🦘</div>
+        <div class="cost">20 💎</div>
+        <div class="desc">购买3次跳跃</div>
+      </div>
+      <div class="shop-card" data-buy="star">
+        <div style="font-size:36px;">⭐</div>
+        <div class="cost">50 💎</div>
+        <div class="desc">兑换100分</div>
+      </div>
+      <div class="shop-card" data-buy="close">
+        <div style="font-size:36px;">🚪</div>
+        <div class="cost" style="color:#e74c3c;">离开</div>
+        <div class="desc">继续挖掘</div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+// ====== Game Configuration ======
+const COLS = 12;
+const ROWS = 15;
+const CELL = 50;
+const W = COLS * CELL;
+const H = ROWS * CELL;
+
+const CELL_TYPES = {
+  EMPTY: 0,
+  DIRT: 1,
+  ROCK: 2,
+  ORE_COMMON: 3,
+  ORE_RARE: 4,
+  ORE_EPIC: 5,
+  SEA_STAR: 6,
+  JUMP_ITEM: 7,
+  SHOP: 8,
+  PLAYER: 9,
+};
+
+// ====== Game State ======
+let canvas, ctx;
+let game = {
+  grid: [],
+  player: { x: 5, y: 0, px: 5, py: 0 },
+  cameraY: 0,
+  depth: 0,
+  ores: 0,
+  score: 0,
+  jumps: 0,
+  character: 'yoyo',
+  oreMultiplier: 1.0,
+  state: 'menu', // menu, playing, gameover, shop
+  shopPos: null,
+  particles: [],
+  bubbles: [],
+  flashTime: 0,
+  animTime: 0,
+  lastMove: 0,
+  totalRows: 0,
+};
+
+// ====== Initialization ======
+function init() {
+  canvas = document.getElementById('canvas');
+  ctx = canvas.getContext('2d');
+  canvas.width = W;
+  canvas.height = H;
+  setupMenu();
+  spawnBubbles();
+  requestAnimationFrame(gameLoop);
+}
+
+function spawnBubbles() {
+  for (let i = 0; i < 20; i++) {
+    game.bubbles.push({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      r: 2 + Math.random() * 6,
+      speed: 0.3 + Math.random() * 0.8,
+      alpha: 0.1 + Math.random() * 0.2,
+    });
+  }
+}
+
+function setupMenu() {
+  document.querySelectorAll('.char-card').forEach(card => {
+    card.addEventListener('click', () => {
+      document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      game.character = card.dataset.char;
+    });
+  });
+  document.getElementById('start-btn').addEventListener('click', startGame);
+}
+
+function startGame() {
+  game.grid = [];
+  game.player = { x: Math.floor(COLS / 2), y: 0, px: Math.floor(COLS / 2), py: 0 };
+  game.cameraY = 0;
+  game.depth = 0;
+  game.ores = 0;
+  game.score = 0;
+  game.jumps = game.character === 'yoyo' ? 8 : 4;
+  game.oreMultiplier = game.character === 'click' ? 1.2 : 1.0;
+  game.state = 'playing';
+  game.particles = [];
+  game.totalRows = 0;
+  generateChunk(0, ROWS + 5);
+  document.getElementById('overlay').classList.add('hidden');
+  document.addEventListener('keydown', handleKey);
+}
+
+// ====== Grid Generation ======
+function generateChunk(startRow, count) {
+  for (let r = startRow; r < startRow + count; r++) {
+    let row = [];
+    for (let c = 0; c < COLS; c++) {
+      if (r < 2) {
+        row.push(CELL_TYPES.DIRT);
+      } else {
+        row.push(generateCell(r, c));
+      }
+    }
+    // Ensure player's starting column is passable at top
+    if (r < 2) {
+      let mid = Math.floor(COLS / 2);
+      row[mid] = CELL_TYPES.DIRT;
+      if (r === 0) row[mid] = CELL_TYPES.EMPTY;
+    }
+    // Ensure no full row of rocks (avoid trapping)
+    if (row.every(v => v === CELL_TYPES.ROCK)) {
+      let idx = Math.floor(Math.random() * COLS);
+      row[idx] = CELL_TYPES.DIRT;
+    }
+    game.grid.push(row);
+    game.totalRows++;
+  }
+}
+
+function generateCell(row, col) {
+  let depthFactor = Math.min(row / 200, 1); // deeper = more rocks & rarer ores
+  let rand = Math.random();
+
+  // Rock (obstacle)
+  if (rand < 0.15 + depthFactor * 0.1) return CELL_TYPES.ROCK;
+
+  // Ore
+  if (rand < 0.22 + depthFactor * 0.03) {
+    let oreRand = Math.random();
+    if (oreRand < 0.6) return CELL_TYPES.ORE_COMMON;
+    if (oreRand < 0.88) return CELL_TYPES.ORE_RARE;
+    return CELL_TYPES.ORE_EPIC;
+  }
+
+  // Sea star
+  if (rand < 0.25) return CELL_TYPES.SEA_STAR;
+
+  // Jump item
+  if (rand < 0.28) return CELL_TYPES.JUMP_ITEM;
+
+  // Shop (rare)
+  if (rand < 0.29 && row > 5 && row % 15 === 0) return CELL_TYPES.SHOP;
+
+  // Dirt
+  return CELL_TYPES.DIRT;
+}
+
+function ensureGrid(y) {
+  if (y >= game.grid.length - 5) {
+    generateChunk(game.grid.length, 10);
+  }
+}
+
+// ====== Input Handling ======
+function handleKey(e) {
+  if (game.state !== 'playing') {
+    if (e.key === 's' || e.key === 'S') {
+      if (game.shopPos) closeShop();
+    }
+    return;
+  }
+
+  switch (e.key) {
+    case 'ArrowLeft': e.preventDefault(); tryMove(-1, 0); break;
+    case 'ArrowRight': e.preventDefault(); tryMove(1, 0); break;
+    case 'ArrowDown': e.preventDefault(); tryMove(0, 1); break;
+    case ' ':
+    case 'ArrowUp':
+      e.preventDefault(); tryJump(); break;
+    case 's':
+    case 'S':
+      e.preventDefault(); checkNearbyShop(); break;
+  }
+}
+
+function getCell(x, y) {
+  if (y < 0 || x < 0 || x >= COLS) return CELL_TYPES.ROCK;
+  if (y >= game.grid.length) return CELL_TYPES.DIRT;
+  return game.grid[y][x];
+}
+
+function setCell(x, y, val) {
+  if (y >= 0 && y < game.grid.length && x >= 0 && x < COLS) {
+    game.grid[y][x] = val;
+  }
+}
+
+function tryMove(dx, dy) {
+  let p = game.player;
+  let nx = p.x + dx;
+  let ny = p.y + dy;
+  let cell = getCell(nx, ny);
+
+  if (cell === CELL_TYPES.ROCK) {
+    showToast('🪨 前方有岩石挡路！用跳跃越过');
+    return;
+  }
+
+  // Collect items
+  collectItem(cell, nx, ny);
+
+  // Move player
+  setCell(p.x, p.y, CELL_TYPES.EMPTY);
+  p.px = p.x; p.py = p.y;
+  p.x = nx; p.y = ny;
+  setCell(nx, ny, CELL_TYPES.PLAYER);
+
+  // Update camera & depth
+  if (dy > 0) {
+    game.depth = p.y * 10;
+    if (p.y - game.cameraY > 8) {
+      game.cameraY = p.y - 8;
+    }
+  }
+  ensureGrid(p.y);
+  spawnDustParticles(nx, ny);
+  updateHUD();
+}
+
+function tryJump() {
+  if (game.jumps <= 0) {
+    showToast('🦘 跳跃次数不足！寻找🦘道具或去商店购买');
+    return;
+  }
+  let p = game.player;
+  // Jump down 2 cells (skip obstacles)
+  let ty = p.y + 2;
+  let cell = getCell(p.x, ty);
+
+  if (cell === CELL_TYPES.ROCK) {
+    // Try diagonal
+    let dirs = [-1, 1];
+    for (let d of dirs) {
+      let altCell = getCell(p.x + d, ty);
+      if (altCell !== CELL_TYPES.ROCK) {
+        doJump(p.x + d, ty);
+        return;
+      }
+    }
+    showToast('🪨 跳跃落点被岩石挡住！');
+    return;
+  }
+
+  doJump(p.x, ty);
+}
+
+function doJump(tx, ty) {
+  let p = game.player;
+  game.jumps--;
+  // Collect anything on landing
+  let cell = getCell(tx, ty);
+  collectItem(cell, tx, ty);
+
+  setCell(p.x, p.y, CELL_TYPES.EMPTY);
+  p.px = p.x; p.py = p.y;
+  p.x = tx; p.y = ty;
+  setCell(tx, ty, CELL_TYPES.PLAYER);
+
+  game.depth = p.y * 10;
+  if (p.y - game.cameraY > 8) {
+    game.cameraY = p.y - 8;
+  }
+  ensureGrid(p.y);
+  spawnJumpParticles(tx, ty);
+  updateHUD();
+}
+
+function collectItem(cell, x, y) {
+  switch (cell) {
+    case CELL_TYPES.DIRT:
+      game.score += 1;
+      break;
+    case CELL_TYPES.ORE_COMMON:
+      game.ores += Math.round(1 * game.oreMultiplier);
+      game.score += 5;
+      showToast('💎 普通矿石 +1');
+      spawnCollectParticles(x, y, '#4ecdc4');
+      break;
+    case CELL_TYPES.ORE_RARE:
+      game.ores += Math.round(5 * game.oreMultiplier);
+      game.score += 20;
+      showToast('💎 稀有矿石 +5');
+      spawnCollectParticles(x, y, '#ffd700');
+      break;
+    case CELL_TYPES.ORE_EPIC:
+      game.ores += Math.round(20 * game.oreMultiplier);
+      game.score += 50;
+      showToast('💎 史诗矿石 +20!');
+      spawnCollectParticles(x, y, '#ff6b6b');
+      break;
+    case CELL_TYPES.SEA_STAR:
+      game.score += 100;
+      showToast('⭐ 海星 +100分!');
+      spawnCollectParticles(x, y, '#ffeaa7');
+      break;
+    case CELL_TYPES.JUMP_ITEM:
+      game.jumps += 2;
+      showToast('🦘 跳跃道具 +2!');
+      spawnCollectParticles(x, y, '#a29bfe');
+      break;
+    case CELL_TYPES.SHOP:
+      game.shopPos = { x, y };
+      openShop();
+      break;
+  }
+  if (cell !== CELL_TYPES.PLAYER && cell !== CELL_TYPES.SHOP) {
+    setCell(x, y, CELL_TYPES.EMPTY);
+  }
+}
+
+// ====== Shop System ======
+function checkNearbyShop() {
+  let p = game.player;
+  // Check adjacent cells for shop
+  let dirs = [[0,1],[1,0],[-1,0],[0,-1],[0,2],[1,1],[-1,1]];
+  for (let [dx, dy] of dirs) {
+    if (getCell(p.x + dx, p.y + dy) === CELL_TYPES.SHOP) {
+      game.shopPos = { x: p.x + dx, y: p.y + dy };
+      openShop();
+      return;
+    }
+  }
+  showToast('🏪 附近没有商店');
+}
+
+function openShop() {
+  game.state = 'shop';
+  document.getElementById('shop-modal').classList.add('show');
+  document.querySelectorAll('.shop-card').forEach(card => {
+    card.onclick = () => handleShopBuy(card.dataset.buy);
+  });
+}
+
+function closeShop() {
+  game.state = 'playing';
+  document.getElementById('shop-modal').classList.remove('show');
+  if (game.shopPos) {
+    setCell(game.shopPos.x, game.shopPos.y, CELL_TYPES.EMPTY);
+    game.shopPos = null;
+  }
+}
+
+function handleShopBuy(item) {
+  switch (item) {
+    case 'jump':
+      if (game.ores >= 20) {
+        game.ores -= 20;
+        game.jumps += 3;
+        showToast('🦘 购买成功！+3跳跃');
+        updateHUD();
+      } else {
+        showToast('💎 矿石不足！需要20');
+      }
+      break;
+    case 'star':
+      if (game.ores >= 50) {
+        game.ores -= 50;
+        game.score += 100;
+        showToast('⭐ 兑换成功！+100分');
+        updateHUD();
+      } else {
+        showToast('💎 矿石不足！需要50');
+      }
+      break;
+    case 'close':
+      closeShop();
+      break;
+  }
+}
+
+// ====== Particles ======
+function spawnDustParticles(x, y) {
+  for (let i = 0; i < 5; i++) {
+    game.particles.push({
+      x: x * CELL + CELL/2 + (Math.random() - 0.5) * 30,
+      y: y * CELL + CELL/2 + (Math.random() - 0.5) * 30,
+      vx: (Math.random() - 0.5) * 2,
+      vy: -Math.random() * 2,
+      life: 1.0,
+      color: '#8b7355',
+      size: 2 + Math.random() * 3,
+    });
+  }
+}
+
+function spawnCollectParticles(x, y, color) {
+  for (let i = 0; i < 12; i++) {
+    let angle = (Math.PI * 2 * i) / 12;
+    game.particles.push({
+      x: x * CELL + CELL/2,
+      y: y * CELL + CELL/2,
+      vx: Math.cos(angle) * (2 + Math.random() * 3),
+      vy: Math.sin(angle) * (2 + Math.random() * 3),
+      life: 1.0,
+      color: color,
+      size: 3 + Math.random() * 4,
+    });
+  }
+}
+
+function spawnJumpParticles(x, y) {
+  for (let i = 0; i < 8; i++) {
+    game.particles.push({
+      x: x * CELL + CELL/2 + (Math.random() - 0.5) * 20,
+      y: y * CELL + CELL - 5,
+      vx: (Math.random() - 0.5) * 3,
+      vy: Math.random() * 2,
+      life: 0.8,
+      color: '#a29bfe',
+      size: 2 + Math.random() * 4,
+    });
+  }
+}
+
+function updateParticles(dt) {
+  game.particles = game.particles.filter(p => {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.15;
+    p.life -= dt * 1.5;
+    return p.life > 0;
+  });
+}
+
+// ====== Toast ======
+let toastTimer = null;
+function showToast(msg) {
+  let t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+// ====== HUD ======
+function updateHUD() {
+  document.getElementById('hud-depth').textContent = game.depth + 'm';
+  document.getElementById('hud-ore').textContent = game.ores;
+  document.getElementById('hud-score').textContent = game.score;
+  document.getElementById('hud-jumps').textContent = game.jumps;
+}
+
+// ====== Rendering ======
+function render() {
+  ctx.clearRect(0, 0, W, H);
+
+  // Background gradient based on depth
+  let depthRatio = Math.min(game.depth / 5000, 1);
+  let topColor = `rgb(${Math.round(13 - depthRatio*10)}, ${Math.round(40 - depthRatio*30)}, ${Math.round(71 - depthRatio*50)})`;
+  let botColor = `rgb(${Math.round(6 - depthRatio*5)}, ${Math.round(21 - depthRatio*15)}, ${Math.round(40 - depthRatio*30)})`;
+  let grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, topColor);
+  grad.addColorStop(1, botColor);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Bubbles
+  game.bubbles.forEach(b => {
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(127, 219, 255, ${b.alpha})`;
+    ctx.fill();
+    b.y -= b.speed;
+    if (b.y < 0) { b.y = H; b.x = Math.random() * W; }
+  });
+
+  // Calculate visible rows
+  let startRow = Math.max(0, Math.floor(game.cameraY) - 1);
+  let endRow = Math.min(game.grid.length, startRow + ROWS + 2);
+  let offsetY = -game.cameraY * CELL;
+
+  // Draw grid cells
+  for (let r = startRow; r < endRow; r++) {
+    for (let c = 0; c < COLS; c++) {
+      let cell = game.grid[r][c];
+      let x = c * CELL;
+      let y = r * CELL + offsetY;
+      drawCell(cell, x, y, r);
+    }
+  }
+
+  // Particles
+  game.particles.forEach(p => {
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y - offsetY * 0 + offsetY, p.size, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+
+  // Flash effect
+  if (game.flashTime > 0) {
+    ctx.fillStyle = `rgba(127, 219, 255, ${game.flashTime * 0.15})`;
+    ctx.fillRect(0, 0, W, H);
+    game.flashTime -= 0.05;
+  }
+
+  // Depth meter on right side
+  drawDepthMeter();
+}
+
+function drawCell(cell, x, y, row) {
+  if (cell === CELL_TYPES.EMPTY || cell === CELL_TYPES.PLAYER) return;
+
+  let cx = x + CELL / 2;
+  let cy = y + CELL / 2;
+
+  switch (cell) {
+    case CELL_TYPES.DIRT:
+      ctx.fillStyle = '#3a2a1a';
+      ctx.fillRect(x + 2, y + 2, CELL - 4, CELL - 4);
+      ctx.fillStyle = '#5a3a20';
+      ctx.fillRect(x + 6, y + 6, CELL - 12, CELL - 12);
+      // Texture dots
+      ctx.fillStyle = 'rgba(139, 115, 85, 0.4)';
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.arc(x + 10 + Math.random() * 30, y + 10 + Math.random() * 30, 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      break;
+
+    case CELL_TYPES.ROCK:
+      ctx.fillStyle = '#4a4a4a';
+      ctx.beginPath();
+      ctx.roundRect(x + 3, y + 3, CELL - 6, CELL - 6, 6);
+      ctx.fill();
+      ctx.fillStyle = '#6a6a6a';
+      ctx.beginPath();
+      ctx.roundRect(x + 7, y + 7, CELL - 14, CELL - 14, 4);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(200,200,200,0.15)';
+      ctx.beginPath();
+      ctx.arc(x + 15, y + 12, 4, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+
+    case CELL_TYPES.ORE_COMMON:
+      drawGem(cx, cy, '#4ecdc4', 14);
+      break;
+
+    case CELL_TYPES.ORE_RARE:
+      drawGem(cx, cy, '#ffd700', 16);
+      break;
+
+    case CELL_TYPES.ORE_EPIC:
+      drawGem(cx, cy, '#ff6b6b', 18);
+      // Glow
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = '#ff6b6b';
+      drawGem(cx, cy, '#ff6b6b', 18);
+      ctx.shadowBlur = 0;
+      break;
+
+    case CELL_TYPES.SEA_STAR:
+      drawSeaStar(cx, cy);
+      break;
+
+    case CELL_TYPES.JUMP_ITEM:
+      ctx.font = '28px serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🦘', cx, cy);
+      break;
+
+    case CELL_TYPES.SHOP:
+      ctx.font = '28px serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🏪', cx, cy);
+      break;
+
+    case CELL_TYPES.PLAYER:
+      drawPlayer(cx, cy);
+      break;
+  }
+}
+
+function drawGem(cx, cy, color, size) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - size);
+  ctx.lineTo(cx + size * 0.7, cy);
+  ctx.lineTo(cx, cy + size);
+  ctx.lineTo(cx - size * 0.7, cy);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - size * 0.6);
+  ctx.lineTo(cx + size * 0.3, cy - size * 0.2);
+  ctx.lineTo(cx, cy);
+  ctx.lineTo(cx - size * 0.3, cy - size * 0.2);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawSeaStar(cx, cy) {
+  ctx.fillStyle = '#ffeaa7';
+  ctx.beginPath();
+  for (let i = 0; i < 5; i++) {
+    let angle = (Math.PI * 2 / 5) * i - Math.PI / 2;
+    let outerR = 14;
+    let innerR = 6;
+    ctx.lineTo(cx + Math.cos(angle) * outerR, cy + Math.sin(angle) * outerR);
+    let innerAngle = angle + Math.PI / 5;
+    ctx.lineTo(cx + Math.cos(innerAngle) * innerR, cy + Math.sin(innerAngle) * innerR);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,200,100,0.3)';
+  ctx.beginPath();
+  ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawPlayer(cx, cy) {
+  // Body
+  ctx.fillStyle = '#ffd93d';
+  ctx.beginPath();
+  ctx.arc(cx, cy + 2, 12, 0, Math.PI * 2);
+  ctx.fill();
+  // Diving helmet
+  ctx.fillStyle = '#a0d8ef';
+  ctx.beginPath();
+  ctx.arc(cx, cy - 4, 10, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.beginPath();
+  ctx.arc(cx - 3, cy - 7, 4, 0, Math.PI * 2);
+  ctx.fill();
+  // Eyes
+  ctx.fillStyle = '#1a1a2e';
+  ctx.beginPath();
+  ctx.arc(cx - 4, cy - 4, 2, 0, Math.PI * 2);
+  ctx.arc(cx + 4, cy - 4, 2, 0, Math.PI * 2);
+  ctx.fill();
+  // Pickaxe
+  ctx.strokeStyle = '#8b7355';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx + 10, cy - 2);
+  ctx.lineTo(cx + 18, cy - 8);
+  ctx.stroke();
+  ctx.fillStyle = '#888';
+  ctx.beginPath();
+  ctx.moveTo(cx + 16, cy - 10);
+  ctx.lineTo(cx + 22, cy - 6);
+  ctx.lineTo(cx + 20, cy - 4);
+  ctx.lineTo(cx + 14, cy - 8);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawDepthMeter() {
+  let mx = W - 20;
+  ctx.fillStyle = 'rgba(127, 219, 255, 0.08)';
+  ctx.fillRect(mx - 6, 50, 6, H - 120);
+  // Current depth marker
+  let meterH = H - 120;
+  let ratio = Math.min(game.depth / 10000, 1);
+  ctx.fillStyle = '#7fdbff';
+  ctx.fillRect(mx - 6, 50 + meterH * (1 - ratio), 6, 4);
+  ctx.fillStyle = 'rgba(127, 219, 255, 0.3)';
+  ctx.font = '10px sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText(game.depth + 'm', mx - 10, 50 + meterH * (1 - ratio) + 4);
+}
+
+// ====== Game Loop ======
+let lastTime = 0;
+function gameLoop(time) {
+  let dt = Math.min((time - lastTime) / 1000, 0.05);
+  lastTime = time;
+  game.animTime += dt;
+
+  if (game.state === 'playing' || game.state === 'gameover') {
+    updateParticles(dt);
+    checkGameOver();
+  }
+
+  render();
+  requestAnimationFrame(gameLoop);
+}
+
+function checkGameOver() {
+  if (game.state !== 'playing') return;
+  let p = game.player;
+  // Check if player can move at all
+  let canMoveDown = getCell(p.x, p.y + 1) !== CELL_TYPES.ROCK;
+  let canMoveLeft = getCell(p.x - 1, p.y) !== CELL_TYPES.ROCK;
+  let canMoveRight = getCell(p.x + 1, p.y) !== CELL_TYPES.ROCK;
+  let canJump = game.jumps > 0 && (getCell(p.x, p.y + 2) !== CELL_TYPES.ROCK || getCell(p.x - 1, p.y + 2) !== CELL_TYPES.ROCK || getCell(p.x + 1, p.y + 2) !== CELL_TYPES.ROCK);
+
+  if (!canMoveDown && !canMoveLeft && !canMoveRight && !canJump) {
+    game.state = 'gameover';
+    showGameOver();
+  }
+}
+
+function showGameOver() {
+  let overlay = document.getElementById('overlay');
+  overlay.classList.remove('hidden');
+  overlay.innerHTML = `
+    <h1>⛏️ 挖掘结束</h1>
+    <p class="subtitle">你被卡住了！下次记得多囤积跳跃道具</p>
+    <div style="display:flex; gap:30px; margin:20px 0;">
+      <div style="text-align:center;"><div style="font-size:32px;color:#7fdbff;">${game.depth}m</div><div style="font-size:12px;color:#5a8ab5;">深度</div></div>
+      <div style="text-align:center;"><div style="font-size:32px;color:#4ecdc4;">${game.ores}</div><div style="font-size:12px;color:#5a8ab5;">矿石</div></div>
+      <div style="text-align:center;"><div style="font-size:32px;color:#ffeaa7;">${game.score}</div><div style="font-size:12px;color:#5a8ab5;">得分</div></div>
+    </div>
+    <p style="color:#a0b8d0; font-size:14px;">角色: ${game.character === 'yoyo' ? '🪀 YOYO' : '👆 CLICK'}</p>
+    <button class="btn" onclick="location.reload()">重新开始 🔁</button>
+  `;
+}
+
+// Polyfill roundRect
+if (!CanvasRenderingContext2D.prototype.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+    this.beginPath();
+    this.moveTo(x + r, y);
+    this.lineTo(x + w - r, y);
+    this.quadraticCurveTo(x + w, y, x + w, y + r);
+    this.lineTo(x + w, y + h - r);
+    this.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    this.lineTo(x + r, y + h);
+    this.quadraticCurveTo(x, y + h, x, y + h - r);
+    this.lineTo(x, y + r);
+    this.quadraticCurveTo(x, y, x + r, y);
+    this.closePath();
+    return this;
+  };
+}
+
+// Start
+init();
+</script>
+</body>
+</html>
